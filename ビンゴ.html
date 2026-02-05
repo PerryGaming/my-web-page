@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>ビンゴルーレット</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: white;
+      overflow: hidden;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 48px;
+      margin: 20px 0;
+      user-select: none;
+    }
+
+    .container {
+      display: flex;
+      height: calc(100vh - 120px);
+    }
+
+    .main {
+      flex: 3;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* 数字（変更なし） */
+    #number {
+      font-size: min(50vw, 55vh);
+      line-height: 0.95;
+      color: #facc15;
+      font-weight: 900;
+      margin-bottom: 28px;
+      padding: 10px 24px;
+      border-radius: 18px;
+      text-shadow:
+        0 6px 18px rgba(0,0,0,0.7),
+        0 0 10px rgba(0,0,0,0.5);
+      user-select: none;
+      transition: transform 0.15s ease;
+    }
+
+    /* 最新数字の赤枠（3秒） */
+    .highlight {
+      border: 8px solid #ef4444;
+      box-shadow:
+        0 0 30px rgba(239,68,68,0.8),
+        0 0 10px rgba(239,68,68,0.6);
+    }
+
+    /* 右側：履歴 */
+    .history {
+      flex: 1;
+      background: #020617;
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .history h2 {
+      text-align: center;
+      margin-bottom: 15px;
+      font-size: 26px;
+      user-select: none;
+    }
+
+    .used {
+      display: inline-block;
+      width: 64px;
+      margin: 6px;
+      padding: 12px 0;
+      text-align: center;
+      background: #334155;
+      border-radius: 8px;
+      font-size: 22px;
+      font-weight: bold;
+    }
+
+    /* ▼ 画面下固定ボタンバー ▼ */
+    .buttons {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 12px;
+      transition: opacity 0.4s ease;
+    }
+
+    .buttons.dim {
+      opacity: 0.3; /* 未操作時の薄さ */
+    }
+
+    .buttons button {
+      font-size: 22px;
+      padding: 14px 26px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    #drawBtn { background: #22c55e; }
+    #fullscreenBtn { background: #38bdf8; }
+    #resetBtn { background: #ef4444; }
+    #soundBtn { background: #a855f7; }
+  </style>
+</head>
+<body>
+
+<h1>🎯 ビンゴルーレット</h1>
+
+<div class="container">
+  <div class="main">
+    <div id="number">---</div>
+  </div>
+
+  <div class="history">
+    <h2>出た数字</h2>
+    <div id="usedNumbers"></div>
+  </div>
+</div>
+
+<!-- 画面下固定ボタン -->
+<div class="buttons dim" id="buttons">
+  <button id="drawBtn" onclick="draw()">回す（Space）</button>
+  <button id="fullscreenBtn" onclick="toggleFullscreen()">フルスクリーン</button>
+  <button id="resetBtn" onclick="resetBingo()">リセット</button>
+  <button id="soundBtn" onclick="toggleSound()">🔊 音ON</button>
+</div>
+
+<!-- 効果音 -->
+<audio id="spinSound" src="spinSound.mp3"></audio>
+<audio id="resultSound" src="resultSound.mp3"></audio>
+
+<script>
+  function initNumbers() {
+    numbers = [];
+    for (let i = 1; i <= 75; i++) numbers.push(i);
+  }
+
+  let numbers = [];
+  initNumbers();
+
+  let isSpinning = false;
+  let soundOn = true;
+  let highlightTimer = null;
+  let idleTimer = null;
+
+  const numberEl = document.getElementById("number");
+  const usedNumbersEl = document.getElementById("usedNumbers");
+  const spinSound = document.getElementById("spinSound");
+  const resultSound = document.getElementById("resultSound");
+  const soundBtn = document.getElementById("soundBtn");
+  const buttonsEl = document.getElementById("buttons");
+
+  const IDLE_TIME = 5000; // ← 未操作で薄くなるまで（ms）
+
+  function setActive() {
+    buttonsEl.classList.remove("dim");
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      buttonsEl.classList.add("dim");
+    }, IDLE_TIME);
+  }
+
+  function draw() {
+    if (isSpinning || numbers.length === 0) return;
+    isSpinning = true;
+    setActive();
+
+    numberEl.classList.remove("highlight");
+    if (highlightTimer) clearTimeout(highlightTimer);
+
+    if (soundOn) {
+      spinSound.currentTime = 0;
+      spinSound.play();
+    }
+
+    const interval = setInterval(() => {
+      const temp = numbers[Math.floor(Math.random() * numbers.length)];
+      numberEl.textContent = temp;
+    }, 70);
+
+    setTimeout(() => {
+      clearInterval(interval);
+      spinSound.pause();
+
+      const index = Math.floor(Math.random() * numbers.length);
+      const result = numbers.splice(index, 1)[0];
+
+      numberEl.textContent = result;
+      numberEl.classList.add("highlight");
+
+      highlightTimer = setTimeout(() => {
+        numberEl.classList.remove("highlight");
+      }, 3000);
+
+      numberEl.style.transform = "scale(1.08)";
+      setTimeout(() => numberEl.style.transform = "scale(1)", 150);
+
+      if (soundOn) {
+        resultSound.currentTime = 0;
+        resultSound.play();
+      }
+
+      const span = document.createElement("span");
+      span.className = "used";
+      span.textContent = result;
+      usedNumbersEl.appendChild(span);
+
+      isSpinning = false;
+    }, 2000);
+  }
+
+  function resetBingo() {
+    setActive();
+    if (!confirm("ビンゴを最初からやり直しますか？")) return;
+    initNumbers();
+    usedNumbersEl.innerHTML = "";
+    numberEl.textContent = "---";
+    numberEl.classList.remove("highlight");
+    if (highlightTimer) clearTimeout(highlightTimer);
+    isSpinning = false;
+  }
+
+  function toggleFullscreen() {
+    setActive();
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  }
+
+  function toggleSound() {
+    setActive();
+    soundOn = !soundOn;
+    soundBtn.textContent = soundOn ? "🔊 音ON" : "🔇 音OFF";
+  }
+
+  document.addEventListener("keydown", e => {
+    if (e.code === "Space") {
+      e.preventDefault();
+      draw();
+    }
+  });
+
+  // 初期状態：数秒後に薄く
+  setActive();
+</script>
+
+</body>
+</html>
